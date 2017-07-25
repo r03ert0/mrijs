@@ -9,43 +9,68 @@
 var MRI = {
     mriPath: null,          // path to mri
     mri: null,              // mri data
-	
-    init: function init(params) {
+    loadMRIFromPath: function loadMRIFromPath(path) {
         var me=MRI;
-        
-        // check params
-        if(!params.mriPath) {
-            console.error("No mri path");
-            return;
-        }
-        
-        // set params
-        me.mriPath=params.mriPath;
-        
-        var def=me.loadMRI();
-        
-        return def;
+        var pr = new Promise(function(resolve, reject) {  
+            // load data
+            var req = new XMLHttpRequest();
+            req.open('GET', path, true);
+            req.responseType='arraybuffer';
+            req.onload = function(oEvent) {
+                // decompress data
+                var niigz=this.response;
+                var inflate=new pako.Inflate();
+                inflate.push(new Uint8Array(niigz),true);
+                var nii=inflate.result.buffer;
+                me.mri=me.parseNifti(nii);
+                me.computeS2VTransform();
+                resolve();
+            };
+            req.onerror = function () {
+              reject("Error loading data");
+            };
+            req.send();
+        });
+        return pr;
     },
-    loadMRI: function loadMRI() {
+    loadMRIFromFile: function loadMRIFromFile(file) {
         var me=MRI;
-        var def=$.Deferred();
-
-        // init data
-		var oReq = new XMLHttpRequest();
-		oReq.open('GET', me.mriPath, true);
-		oReq.responseType='arraybuffer';
-		oReq.onload = function(oEvent) {
-			// decompress data
-			var niigz=this.response;
-            var inflate=new pako.Inflate();
-            inflate.push(new Uint8Array(niigz),true);
-            var nii=inflate.result.buffer;
-            me.mri=me.parseNifti(nii);
-            def.resolve();
-        }
-		oReq.send();
-		
-		return def.promise();
+        var pr = new Promise(function(resolve, reject) {  
+            // load data
+            var reader = new FileReader();
+            reader.onload = function() {
+                // decompress data
+                var niigz=this.result;
+                var inflate=new pako.Inflate();
+                inflate.push(new Uint8Array(niigz),true);
+                var nii=inflate.result.buffer;
+                me.mri=me.parseNifti(nii);
+                me.computeS2VTransform();
+                console.log('done');
+                resolve();
+            };
+            reader.readAsArrayBuffer(file);
+/*
+            var req = new XMLHttpRequest();
+            req.open('GET', me.mriPath, true);
+            req.responseType='arraybuffer';
+            req.onload = function(oEvent) {
+                // decompress data
+                var niigz=this.response;
+                var inflate=new pako.Inflate();
+                inflate.push(new Uint8Array(niigz),true);
+                var nii=inflate.result.buffer;
+                me.mri=me.parseNifti(nii);
+                me.computeS2VTransform();
+                resolve();
+            };
+            req.onerror = function () {
+              reject("Error loading data");
+            };
+            req.send();
+*/
+        });
+        return pr;
     },
     NiiHdrLE: Struct()
         .word32Sle('sizeof_hdr')        // Size of the header. Must be 348 (bytes)
@@ -227,5 +252,112 @@ var MRI = {
 		}
 	
 		return mri;
+	},
+	multMatVec: function multMatVec(m,v) {
+	    return [
+	        m[0][0]*v[0] + m[0][1]*v[1] + m[0][2]*v[2] + m[0][3],
+	        m[1][0]*v[0] + m[1][1]*v[1] + m[1][2]*v[2] + m[1][3],
+	        m[2][0]*v[0] + m[2][1]*v[1] + m[2][2]*v[2] + m[2][3],
+	    ];
+	},
+	vox2mm: function vox2mm() {
+		var me=MRI;
+        var h=JSON.parse(JSON.stringify(me.NiiHdrLE.fields));
+	    return [
+            [h.srow_x[0], h.srow_x[1], h.srow_x[2], h.srow_x[3]],
+            [h.srow_y[0], h.srow_y[1], h.srow_y[2], h.srow_y[3]],
+            [h.srow_z[0], h.srow_z[1], h.srow_z[2], h.srow_z[3]],
+            [0,0,0,1]
+	    ];
+	},
+	mm2vox: function mm2vox() {
+	},
+	vox2pix: function vox2pix() {
+	},
+	pix2vox: function pix2vox() {
+	},
+	mm2pix: function mm2pix() {
+	},
+	pix2mm: function pix2mm() {
+	},
+	
+    /**
+     * @function computeS2VTransformation
+     */
+	computeS2VTransform: function computeS2VTransform() {
+	/*
+		The basic transformation is
+		w = v2w * v + wori
+		
+		Where:
+		w: world coordinates. In world coordinates, x=sagittal, y=coronal and z=axial
+		wori: origin of the world coordinates
+		v: voxel coordinates
+		v2w: rotation matrix from v to w
+		
+		In what follows:
+		v refers to native voxel coordinates
+		w refers to world coordinates
+		s refers screen pixel coordinates
+	*/ 
+		var me=MRI;
+
+        var h=JSON.parse(JSON.stringify(me.NiiHdrLE.fields));
+        var v2w = [
+            [h.srow_x[0], h.srow_y[0], h.srow_z[0]],
+            [h.srow_x[1], h.srow_y[1], h.srow_z[1]],
+            [h.srow_x[2], h.srow_y[2], h.srow_z[2]]
+        ];
+        var ori = [h.srow_x[3], h.srow_y[3], h.srow_z[3]];
+        
+        console.log("volume to world",...v2w);
+        console.log("origin",ori);
+
+		/*
+		var wori=mri.wori;
+		var wpixdim=me.subVecVec(me.mulMatVec(v2w,[1,1,1]),me.mulMatVec(v2w,[0,0,0]));
+		var wvmax=me.addVecVec(me.mulMatVec(v2w,[mri.dim[0]-1,mri.dim[1]-1,mri.dim[2]-1]),wori);
+		var wvmin=me.addVecVec(me.mulMatVec(v2w,[0,0,0]),wori);
+		var wmin=[Math.min(wvmin[0],wvmax[0]),Math.min(wvmin[1],wvmax[1]),Math.min(wvmin[2],wvmax[2])];
+		var wmax=[Math.max(wvmin[0],wvmax[0]),Math.max(wvmin[1],wvmax[1]),Math.max(wvmin[2],wvmax[2])];
+		var w2s=[[1/Math.abs(wpixdim[0]),0,0],[0,1/Math.abs(wpixdim[1]),0],[0,0,1/Math.abs(wpixdim[2])]];
+		*/
+
+        var mi={i:0,v:0};v2w[0].map(function(o,n){if(Math.abs(o)>Math.abs(mi.v)) mi={i:n,v:o}});
+        var mj={i:0,v:0};v2w[1].map(function(o,n){if(Math.abs(o)>Math.abs(mj.v)) mj={i:n,v:o}});
+        var mk={i:0,v:0};v2w[2].map(function(o,n){if(Math.abs(o)>Math.abs(mk.v)) mk={i:n,v:o}});
+        
+        console.log("maximum axis",mi,mj,mk);
+        
+		/*
+		mri.s2v = {
+    		// old s2v fields
+			s2w: me.invMat(w2s),
+			sdim: [],
+			sori: [-wmin[0]/Math.abs(wpixdim[0]),-wmin[1]/Math.abs(wpixdim[1]),-wmin[2]/Math.abs(wpixdim[2])],
+			wpixdim: [],
+			w2v: me.invMat(v2w),
+            wori: wori,
+
+            // new s2v transformation
+            x: mi.i, // correspondence between screen coordinate x and voxel coordinate i
+            y: mj.i, // same for y
+            z: mk.i, // same for z
+            dx: (mi.v>0)?1:(-1), // direction of displacement in space coordinate x with displacement in voxel coordinate i
+            dy: (mj.v>0)?1:(-1), // same for y
+            dz: (mk.v>0)?1:(-1), // same for z
+            X: (mi.v>0)?0:(mri.dim[0]-1), // starting value for space coordinate x when voxel coordinate i starts
+            Y: (mj.v>0)?0:(mri.dim[1]-1), // same for y
+            Z: (mk.v>0)?0:(mri.dim[2]-1) // same for z
+		};
+        mri.v2w=v2w;
+        mri.wori=wori;
+        mri.s2v.sdim[mi.i] = mri.dim[0];
+        mri.s2v.sdim[mj.i] = mri.dim[1];
+        mri.s2v.sdim[mk.i] = mri.dim[2];
+        mri.s2v.wpixdim[mi.i] = mri.pixdim[0];
+        mri.s2v.wpixdim[mj.i] = mri.pixdim[1];
+        mri.s2v.wpixdim[mk.i] = mri.pixdim[2];
+        */
 	}
 }
