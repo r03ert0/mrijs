@@ -3,8 +3,10 @@
 function MRI() {
   var me = {
       mriPath: null,          // path to mri
-      struct_url: 'https://rawgit.com/r03ert0/structjs/master/struct.js', //'http://localhost/structjs/struct.js',
-      pako_url: 'https://rawgit.com/nodeca/pako/master/dist/pako.min.js', //'http://localhost/libs/pako/1.0.5/pako.js',
+      //struct_url: 'http://localhost/structjs/struct.js',
+      //pako_url: 'http://localhost/libs/pako/1.0.5/pako.js',
+      struct_url: 'https://rawgit.com/r03ert0/structjs/master/struct.js',
+      pako_url: 'https://rawgit.com/nodeca/pako/master/dist/pako.min.js',
       // script loader
       loadScript: function loadScript(path, testScriptPresent) {
           var pr = new Promise(function(resolve, reject) {
@@ -33,7 +35,7 @@ function MRI() {
       init: function init() {
           var pr = new Promise(function(resolve, reject) {
               me.loadScript(me.struct_url, function() {return window.Struct != undefined;})
-              .then(function() {return me.loadScript(pako_url, function() {return window.pako != undefined;});})
+              .then(function() {return me.loadScript(me.pako_url, function() {return window.pako != undefined;});})
               /*
               var pr=me.loadScript('https://cdn.rawgit.com/r03ert0/mrijs/v0.0.2/mri.js',function(){return window.MRI!=undefined});
               */
