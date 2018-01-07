@@ -1,38 +1,39 @@
 'use strict';
 
 function MRI() {
-  var me = {
-      mriPath: null,          // path to mri
-      //struct_url: 'http://localhost/structjs/struct.js',
-      //pako_url: 'http://localhost/libs/pako/1.0.5/pako.js',
-      struct_url: 'https://rawgit.com/r03ert0/structjs/master/struct.js',
-      pako_url: 'https://rawgit.com/nodeca/pako/master/dist/pako.min.js',
-      // script loader
-      loadScript: function loadScript(path, testScriptPresent) {
-          var pr = new Promise(function(resolve, reject) {
-              console.log(testScriptPresent, testScriptPresent());
-              if (testScriptPresent && testScriptPresent()) {
-                console.log('Script', path, 'already present, not loading it again');
-                resolve();
-                return;
-              }
-              var s = document.createElement('script');
-              s.src = path;
-              s.onload = function() {
-                  console.log('Loaded', path);
-                  resolve();
-                  return;
+    var me = {
+        mriPath: null,          // path to mri
+        mriFile: null,          // mri file
+        struct_url: 'http://localhost/structjs/struct.js',
+        pako_url: 'http://localhost/libs/pako/1.0.5/pako.js',
+        //struct_url: 'https://rawgit.com/r03ert0/structjs/master/struct.js',
+        //pako_url: 'https://rawgit.com/nodeca/pako/master/dist/pako.min.js',
+        // script loader
+        loadScript: function loadScript(path, testScriptPresent) {
+            var pr = new Promise(function(resolve, reject) {
+                console.log(testScriptPresent, testScriptPresent());
+                if (testScriptPresent && testScriptPresent()) {
+                    console.log('Script', path, 'already present, not loading it again');
+                    resolve();
+                    return;
+                }
+                var s = document.createElement('script');
+                s.src = path;
+                s.onload = function() {
+                    console.log('Loaded', path);
+                    resolve();
+                    return;
                 };
-              s.onerror = function() {
-                  console.error('ERROR');
-                  reject();
-                  return;
+                s.onerror = function() {
+                    console.error('ERROR');
+                    reject();
+                    return;
                 };
-              document.body.appendChild(s);
+                document.body.appendChild(s);
             });
-          return pr;
+            return pr;
         },
-      init: function init() {
+        init: function init() {
           var pr = new Promise(function(resolve, reject) {
               me.loadScript(me.struct_url, function() {return window.Struct != undefined;})
               .then(function() {return me.loadScript(me.pako_url, function() {return window.pako != undefined;});})
@@ -137,31 +138,113 @@ function MRI() {
             });
           return pr;
         },
-      loadMRIFromPath: function loadMRIFromPath(path) {
-          var pr = new Promise(function(resolve, reject) {
-              // load data
-              var req = new XMLHttpRequest();
-              req.open('GET', path, true);
-              req.responseType = 'arraybuffer';
-              req.onload = function(oEvent) {
-                  // decompress data
-                  var niigz = this.response;
-                  var inflate = new pako.Inflate();
-                  inflate.push(new Uint8Array(niigz), true);
-                  var nii = inflate.result.buffer;
-                  me.parseNifti(nii);
-                  me.mriPath = path;
-                  me.computeS2VTransform();
-                  resolve();
-                };
-              req.onerror = function() {
-                reject('Error loading data');
-              };
-              req.send();
-            });
-          return pr;
+        /**
+          * @function createNifti
+          * @desc create a nifti1 file
+          * @param dim array Array with 3 integers with the x, y and z dimensions of the data
+          * @param pixdim array Array with 3 floats with the x, y and z sizes of the data voxels's
+          * @param v2w array Array containing 4 arrays, each containing 4 floats, giving the affine voxel-to-world matrix of the data
+          * @param data array An array of size dim[0]*dim[1]*dim[2] containing the data to be encoded
+          * @returnValue Gzip compressed nifti format data
+          */
+          
+        createNifti: function createNifti(dim, pixdim, v2w, data) {
+            let sizeof_hdr=348;
+            let dimensions=4;            // number of dimension values provided
+            let spacetimeunits=2+8;        // 2=nifti code for millimetres | 8=nifti code for seconds
+            let datatype=16;                // datatype for Float32 data
+            let vox_offset=352;
+            let bitsPerVoxel=32;
+
+            let newHdr = {
+                sizeof_hdr: sizeof_hdr,
+                    data_type: '', db_name: '', extents: 0, session_error: 0, regular: 0, dim_info: 0,
+                dim: [3, dim[0], dim[1], dim[2], 1, 1, 1, 1],
+                    intent_p1: 0, intent_p2: 0, intent_p3: 0, intent_code: 0,
+                datatype: datatype,    // uchar
+                bitpix: bitsPerVoxel,
+                    slice_start: 0,
+                pixdim: [-1, pixdim[0], pixdim[1], pixdim[2], 0, 1, 1, 1],
+                vox_offset: vox_offset,
+                    scl_slope: 1, scl_inter: 0, slice_end: 0, slice_code: 0,
+                    xyzt_units: 10,
+                    cal_max: 0, cal_min: 0, slice_duration: 0, toffset: 0,
+                    glmax: 0, glmin: 0,
+                    descrip: 'Reorient, 5 January 2018',
+                    aux_file: '',
+                    qform_code: 0,
+                    sform_code: 1,
+                    quatern_b: 0, quatern_c: 0, quatern_d: 0,
+                    qoffset_x: 0, qoffset_y: 0, qoffset_z: 0,
+                srow_x: [v2w[0][0], v2w[0][1], v2w[0][2], v2w[0][3]],
+                srow_y: [v2w[1][0], v2w[1][1], v2w[1][2], v2w[1][3]],
+                srow_z: [v2w[2][0], v2w[2][1], v2w[2][2], v2w[2][3]],
+                    intent_name: '',
+                    magic: 'n+1'
+            };
+            me.NiiHdrLE.allocate();
+            let niihdr = me.NiiHdrLE.buffer();
+            let i;
+            for(i in newHdr) {
+                me.NiiHdrLE.fields[i] = newHdr[i];
+            }
+            let hdr = toArrayBuffer(niihdr);
+
+
+            let img = new Float32Array(data.length); //Buffer(sz);
+            for(i = 0; i<data.length; i++) {
+                img[i] = data[i];
+            }
+            let nii = new Uint8Array(img.buffer.byteLength + vox_offset);
+            nii.set(hdr,0);
+            nii.set(new Uint8Array(img.buffer), hdr.length);
+
+            var niigz=new pako.Deflate({gzip:true});
+            niigz.push(nii,true);
+        
+            return niigz.result;
         },
-      loadMRIFromFile: function loadMRIFromFile(file) {
+        /**
+         * @function saveNifti
+         */
+        saveNifti: function saveNifti(niigz, name) {
+            var a = document.createElement('a');
+            var niigzBlob = new Blob([niigz]);
+            a.href=window.URL.createObjectURL(niigzBlob);
+            a.download=name;
+            document.body.appendChild(a);
+            a.click();
+        },
+        loadMRIFromPath: function loadMRIFromPath(path, updateProgress) {
+            var pr = new Promise(function(resolve, reject) {
+                // load data
+                var req = new XMLHttpRequest();
+                req.open('GET', path, true);
+                req.responseType = 'arraybuffer';
+                req.onload = function(oEvent) {
+                    // decompress data
+                    var niigz = this.response;
+                    var inflate = new pako.Inflate();
+                    inflate.push(new Uint8Array(niigz), true);
+                    var nii = inflate.result.buffer;
+                    me.parseNifti(nii);
+                    me.mriPath = path;
+                    me.computeS2VTransform();
+                    me.MatrixVox2Mm = me.vox2mm();
+                    me.MatrixMm2Vox = me.mm2vox();
+                    console.log('done');
+                    resolve();
+                };
+                req.addEventListener("progress", updateProgress);
+                req.onerror = function() {
+                    reject('Error loading data');
+                };
+                req.send();
+            });
+
+            return pr;
+        },
+        loadMRIFromFile: function loadMRIFromFile(file) {
           var pr = new Promise(function(resolve, reject) {
               // load data
               var reader = new FileReader();
@@ -173,6 +256,8 @@ function MRI() {
                   var nii = inflate.result.buffer;
                   me.parseNifti(nii);
                   me.computeS2VTransform();
+                  me.MatrixVox2Mm = me.vox2mm();
+                  me.MatrixMm2Vox = me.mm2vox();
                   console.log('done');
                   resolve();
                 };
@@ -180,40 +265,40 @@ function MRI() {
             });
           return pr;
         },
-      NiiHdrLE: null,
-      NiiHdrBE: null,
-      swapInt16: function swapInt16(arr) {
+        NiiHdrLE: null,
+        NiiHdrBE: null,
+        swapInt16: function swapInt16(arr) {
           var i,dv = new DataView(arr.buffer);
           for (i = 0; i < arr.length; i++) {
             arr[i] = dv.getInt16(2 * i, false);
           }
           return arr;
         },
-      swapUint16: function swapUint16(arr) {
+        swapUint16: function swapUint16(arr) {
           var i,dv = new DataView(arr.buffer);
           for (i = 0; i < arr.length; i++) {
             arr[i] = dv.getUint16(2 * i, false);
           }
           return arr;
         },
-      swapInt32: function swapInt32(arr) {
+        swapInt32: function swapInt32(arr) {
           var i,dv = new DataView(arr.buffer);
           for (i = 0; i < arr.length; i++) {
             arr[i] = dv.getInt32(4 * i, false);
           }
           return arr;
         },
-      swapFloat32: function swapFloat32(arr) {
+        swapFloat32: function swapFloat32(arr) {
           var i,dv = new DataView(arr.buffer);
           for (i = 0; i < arr.length; i++) {
             arr[i] = dv.getFloat32(4 * i, false);
           }
           return arr;
         },
-      /**
-       * @function parseNifti
-       */
-      parseNifti: function parseNifti(nii) {
+        /**
+          * @function parseNifti
+          */
+        parseNifti: function parseNifti(nii) {
           var endianness = 'le';
 
           me.NiiHdrLE._setBuff(toBuffer(nii));
@@ -224,8 +309,8 @@ function MRI() {
             endianness = 'be';
           }
 
-          var	vox_offset = h.vox_offset;
-          var	sizeof_hdr = h.sizeof_hdr;
+          var   vox_offset = h.vox_offset;
+          var   sizeof_hdr = h.sizeof_hdr;
 
           me.hdr = nii.slice(0, vox_offset);
           me.datatype = h.datatype;
@@ -272,14 +357,56 @@ function MRI() {
             console.error('Unknown dataType: ' + me.datatype);
         }
         },
-      multMatVec: function multMatVec(m, v) {
-          return [
-              m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2] + m[0][3],
-              m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2] + m[1][3],
-              m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2] + m[2][3],
-          ];
+        multMatVec: function multMatVec(m, v) {
+            return [
+                m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2] + m[0][3],
+                m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2] + m[1][3],
+                m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2] + m[2][3],
+            ];
         },
-      vox2mm: function vox2mm() {
+        multMatMat: function multMatVec(m, n) {
+            return [
+                [m[0][0]*n[0][0]+m[0][1]*n[1][0]+m[0][2]*n[2][0]+m[0][3]*n[3][0],  m[0][0]*n[0][1]+m[0][1]*n[1][1]+m[0][2]*n[2][1]+m[0][3]*n[3][1],  m[0][0]*n[0][2]+m[0][1]*n[1][2]+m[0][2]*n[2][2]+m[0][3]*n[3][2], m[0][0]*n[0][3]+m[0][1]*n[1][3]+m[0][2]*n[2][3]+m[0][3]*n[3][3]],
+                [m[1][0]*n[0][0]+m[1][1]*n[1][0]+m[1][2]*n[2][0]+m[1][3]*n[3][0],  m[1][0]*n[0][1]+m[1][1]*n[1][1]+m[1][2]*n[2][1]+m[1][3]*n[3][1],  m[1][0]*n[0][2]+m[1][1]*n[1][2]+m[1][2]*n[2][2]+m[1][3]*n[3][2], m[1][0]*n[0][3]+m[1][1]*n[1][3]+m[1][2]*n[2][3]+m[1][3]*n[3][3]],
+                [m[2][0]*n[0][0]+m[2][1]*n[1][0]+m[2][2]*n[2][0]+m[2][3]*n[3][0],  m[2][0]*n[0][1]+m[2][1]*n[1][1]+m[2][2]*n[2][1]+m[2][3]*n[3][1],  m[2][0]*n[0][2]+m[2][1]*n[1][2]+m[2][2]*n[2][2]+m[2][3]*n[3][2], m[2][0]*n[0][3]+m[2][1]*n[1][3]+m[2][2]*n[2][3]+m[2][3]*n[3][3]],
+                [m[3][0]*n[0][0]+m[3][1]*n[1][0]+m[3][2]*n[2][0]+m[3][3]*n[3][0],  m[3][0]*n[0][1]+m[3][1]*n[1][1]+m[3][2]*n[2][1]+m[3][3]*n[3][1],  m[3][0]*n[0][2]+m[3][1]*n[1][2]+m[3][2]*n[2][2]+m[3][3]*n[3][2], m[3][0]*n[0][3]+m[3][1]*n[1][3]+m[3][2]*n[2][3]+m[3][3]*n[3][3]]
+            ];
+        },
+        inv4x4Mat: function inv4x4Mat(m) {
+            let inv = [];
+            let det, i;
+
+            inv[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15] + m[9] * m[7] * m[14] + m[13] * m[6] * m[11] - m[13] * m[7] * m[10];
+            inv[4] = -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15] - m[8] * m[7] * m[14] - m[12] * m[6] * m[11] + m[12] * m[7] * m[10];
+            inv[8] = m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15] + m[8] * m[7] * m[13] + m[12] * m[5] * m[11] - m[12] * m[7] * m[9];
+            inv[12] = -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] +m[8] * m[5] * m[14] - m[8] * m[6] * m[13] - m[12] * m[5] * m[10] + m[12] * m[6] * m[9];
+            inv[1] = -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15] - m[9] * m[3] * m[14] - m[13] * m[2] * m[11] + m[13] * m[3] * m[10];
+            inv[5] = m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15] + m[8] * m[3] * m[14] + m[12] * m[2] * m[11] - m[12] * m[3] * m[10];
+            inv[9] = -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15] - m[8] * m[3] * m[13] - m[12] * m[1] * m[11] + m[12] * m[3] * m[9];
+            inv[13] = m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14] + m[8] * m[2] * m[13] + m[12] * m[1] * m[10] - m[12] * m[2] * m[9];
+            inv[2] = m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15] + m[5] * m[3] * m[14] + m[13] * m[2] * m[7] - m[13] * m[3] * m[6];
+            inv[6] = -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15] - m[4] * m[3] * m[14] - m[12] * m[2] * m[7] + m[12] * m[3] * m[6];
+            inv[10] = m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15] + m[4] * m[3] * m[13] + m[12] * m[1] * m[7] - m[12] * m[3] * m[5];
+            inv[14] = -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14] - m[4] * m[2] * m[13] - m[12] * m[1] * m[6] + m[12] * m[2] * m[5];
+            inv[3] = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11] - m[5] * m[3] * m[10] - m[9] * m[2] * m[7] + m[9] * m[3] * m[6];
+            inv[7] = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11] + m[4] * m[3] * m[10] + m[8] * m[2] * m[7] - m[8] * m[3] * m[6];
+            inv[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11] - m[4] * m[3] * m[9] - m[8] * m[1] * m[7] + m[8] * m[3] * m[5];
+            inv[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10] + m[4] * m[2] * m[9] + m[8] * m[1] * m[6] - m[8] * m[2] * m[5];
+            det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
+
+            if (det == 0)
+                return;
+            det = 1.0 / det;
+            for (i = 0; i < 16; i++)
+                inv[i] = inv[i] * det;
+            return inv;
+        },
+
+        /**
+        * @desc Obtain the affine matrix to pass from voxel indices to world
+        *       coordinates (millimetres) from the nifti header
+        */
+        vox2mm: function vox2mm() {
           var h = JSON.parse(JSON.stringify(me.NiiHdrLE.fields));
           return [
               [h.srow_x[0], h.srow_x[1], h.srow_x[2], h.srow_x[3]],
@@ -288,52 +415,62 @@ function MRI() {
               [0,0,0,1]
           ];
         },
-      mm2vox: function mm2vox() {
-      },
-      vox2pix: function vox2pix() {
-      },
-      pix2vox: function pix2vox() {
-      },
-      mm2pix: function mm2pix() {
-      },
-      pix2mm: function pix2mm() {
-      },
+        /**
+        * @desc Compute the affine matrix to pass from coordinates in world
+        *       dimensions (millimetres) voxel indices by inverting the vox2mm
+        *       matrix.
+        */
+        mm2vox: function mm2vox() {
+            var m = me.vox2mm();
+            var im = me.inv4x4Mat([...m[0], ...m[1], ...m[2], ...m[3]]);
 
-      /**
-       * @function computeS2VTransformation
-       */
-      computeS2VTransform: function computeS2VTransform() {
-          var h = JSON.parse(JSON.stringify(me.NiiHdrLE.fields));
-          var v2w = [
-              [h.srow_x[0], h.srow_y[0], h.srow_z[0]],
-              [h.srow_x[1], h.srow_y[1], h.srow_z[1]],
-              [h.srow_x[2], h.srow_y[2], h.srow_z[2]]
-          ];
+            return [im.splice(0,4), im.splice(0,4), im.splice(0,4), im];
+        },
+        vox2pix: function vox2pix() {
+        },
+        pix2vox: function pix2vox() {
+        },
+        mm2pix: function mm2pix() {
+        },
+        pix2mm: function pix2mm() {
+        },
 
-          var mi = {i: 0,v: 0};v2w[0].map(function(o, n) {if (Math.abs(o) > Math.abs(mi.v)) mi = {i: n,v: o};});
-          var mj = {i: 0,v: 0};v2w[1].map(function(o, n) {if (Math.abs(o) > Math.abs(mj.v)) mj = {i: n,v: o};});
-          var mk = {i: 0,v: 0};v2w[2].map(function(o, n) {if (Math.abs(o) > Math.abs(mk.v)) mk = {i: n,v: o};});
+        /**
+        * @function computeS2VTransformation
+        * @desc Find the orthogonal rotation closest to the orientation of the brain
+        */
+        computeS2VTransform: function computeS2VTransform() {
+            var h = JSON.parse(JSON.stringify(me.NiiHdrLE.fields));
+            var v2w = [
+                [h.srow_x[0], h.srow_y[0], h.srow_z[0]],
+                [h.srow_x[1], h.srow_y[1], h.srow_z[1]],
+                [h.srow_x[2], h.srow_y[2], h.srow_z[2]]
+            ];
 
-          me.s2v = {
-              x: mi.i, // correspondence between screen coordinate x and voxel coordinate i
-              y: mj.i, // same for y
-              z: mk.i, // same for z
-              dx: (mi.v > 0) ? 1 : (-1), // direction of displacement in space coordinate x with displacement in voxel coordinate i
-              dy: (mj.v > 0) ? 1 : (-1), // same for y
-              dz: (mk.v > 0) ? 1 : (-1), // same for z
-              X: (mi.v > 0) ? 0 : (me.dim[0] - 1), // starting value for space coordinate x when voxel coordinate i starts
-              Y: (mj.v > 0) ? 0 : (me.dim[1] - 1), // same for y
-              Z: (mk.v > 0) ? 0 : (me.dim[2] - 1), // same for z
-              sdim: [],
-              wpixdim: []
+            var mi = {i: 0,v: 0};v2w[0].map(function(o, n) {if (Math.abs(o) > Math.abs(mi.v)) mi = {i: n,v: o};});
+            var mj = {i: 0,v: 0};v2w[1].map(function(o, n) {if (Math.abs(o) > Math.abs(mj.v)) mj = {i: n,v: o};});
+            var mk = {i: 0,v: 0};v2w[2].map(function(o, n) {if (Math.abs(o) > Math.abs(mk.v)) mk = {i: n,v: o};});
+
+            me.s2v = {
+                x: mi.i, // correspondence between screen coordinate x and voxel coordinate i
+                y: mj.i, // same for y
+                z: mk.i, // same for z
+                dx: (mi.v > 0) ? 1 : (-1), // direction of displacement in space coordinate x with displacement in voxel coordinate i
+                dy: (mj.v > 0) ? 1 : (-1), // same for y
+                dz: (mk.v > 0) ? 1 : (-1), // same for z
+                X: (mi.v > 0) ? 0 : (me.dim[0] - 1), // starting value for space coordinate x when voxel coordinate i starts
+                Y: (mj.v > 0) ? 0 : (me.dim[1] - 1), // same for y
+                Z: (mk.v > 0) ? 0 : (me.dim[2] - 1), // same for z
+                sdim: [],
+                wpixdim: []
             };
-          me.s2v.sdim[mi.i] = me.dim[0];
-          me.s2v.sdim[mj.i] = me.dim[1];
-          me.s2v.sdim[mk.i] = me.dim[2];
-          me.s2v.wpixdim[mi.i] = me.pixdim[0];
-          me.s2v.wpixdim[mj.i] = me.pixdim[1];
-          me.s2v.wpixdim[mk.i] = me.pixdim[2];
+            me.s2v.sdim[mi.i] = me.dim[0];
+            me.s2v.sdim[mj.i] = me.dim[1];
+            me.s2v.sdim[mk.i] = me.dim[2];
+            me.s2v.wpixdim[mi.i] = me.pixdim[0];
+            me.s2v.wpixdim[mj.i] = me.pixdim[1];
+            me.s2v.wpixdim[mk.i] = me.pixdim[2];
         }
     };
-  return me;
+    return me;
 }
