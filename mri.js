@@ -426,6 +426,10 @@ function MRI() {
 
             return [im.splice(0,4), im.splice(0,4), im.splice(0,4), im];
         },
+        /**
+          * @todo Additional transformation functions
+          */
+/*
         vox2pix: function vox2pix() {
         },
         pix2vox: function pix2vox() {
@@ -434,6 +438,7 @@ function MRI() {
         },
         pix2mm: function pix2mm() {
         },
+*/
 
         /**
         * @function computeS2VTransformation
