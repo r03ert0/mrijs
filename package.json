@@ -1,0 +1,22 @@
+{
+  "name": "naat-mrijs",
+  "version": "1.0.0",
+  "description": "An mri reader and writer",
+  "main": "mri.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/r03ert0/mrijs.git"
+  },
+  "keywords": [
+    "neuroimaging"
+  ],
+  "author": "Roberto Toro <rto@braincatalogue.org> (https://neuroanatomy.github.io)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/r03ert0/mrijs/issues"
+  },
+  "homepage": "https://github.com/r03ert0/mrijs#readme"
+}

@@ -6,6 +6,7 @@ function MRI() {
         mriFile: null,          // mri file
         //struct_url: 'http://localhost/structjs/struct.js',
         //pako_url: 'http://localhost/libs/pako/1.0.5/pako.js',
+
         struct_url: 'https://cdn.jsdelivr.net/npm/naat-structjs@1.0.0/struct.js',
         pako_url: 'https://cdn.jsdelivr.net/npm/pako@1.0.10/dist/pako.min.js',
         // script loader
