@@ -1,21 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <title>mrijs</title>
-    </head>
+  <head>
+    <title>mrijs</title>
+  </head>
 
-    <body>
-        <script src='https://cdn.jsdelivr.net/gh/neuroanatomy/mrijs@0.0.3/mri.js'></script>
-        <!--<script src='http://localhost/mrijs/mri.js'></script>-->
-        <script>
-            var m=new MRI();
-            m.init()
-            .then(function(){return m.loadMRIFromPath('data/sloth_bear_cropped.nii.gz')})
-            .then(function(){
-                var h=JSON.stringify(m.NiiHdrLE.fields,undefined,2);
-                document.body.innerHTML+='The header of the MRI file '+m.mriPath+' is:';
-                document.body.innerHTML+='<pre>'+h+'</pre>';
-            });
-        </script>
-    </body>
+  <body>
+    <script src='https://cdn.jsdelivr.net/gh/neuroanatomy/mrijs@0.0.3/mri.js'></script>
+    <!--<script src='http://localhost/mrijs/mri.js'></script>-->
+    <script>
+      var m = new MRI();
+      m.init()
+      .then(function(){return m.loadMRIFromPath('data/sloth_bear_cropped.nii.gz')})
+      .then(function(){
+        var h=JSON.stringify(m.NiiHdrLE.fields,undefined,2);
+        document.body.innerHTML+='The header of the MRI file '+m.mriPath+' is:';
+        document.body.innerHTML+='<pre>'+h+'</pre>';
+      });
+    </script>
+  </body>
 </html>
