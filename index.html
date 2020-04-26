@@ -12,7 +12,7 @@
       m.init()
       .then(function(){return m.loadMRIFromPath('data/sloth_bear_cropped.nii.gz')})
       .then(function(){
-        var h=JSON.stringify(m.NiiHdrLE.fields,undefined,2);
+        var h = JSON.stringify(m.NiiHdrLE.fields,undefined,2);
         document.body.innerHTML+='The header of the MRI file '+m.mriPath+' is:';
         document.body.innerHTML+='<pre>'+h+'</pre>';
       });
