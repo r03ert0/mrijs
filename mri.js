@@ -158,7 +158,7 @@ function MRI() {
     createNifti: function createNifti(dim, pixdim, v2w, data) {
       let sizeof_hdr = 348;
       let dimensions = 4;          // number of dimension values provided
-      let spacetimeunits = 2+8;    // 2=nifti code for millimetres | 8=nifti code for seconds
+      let spacetimeunits = 2 + 8;    // 2=nifti code for millimetres | 8=nifti code for seconds
       let datatype = 16;           // datatype for Float32 data
       let vox_offset = 352;
       let bitsPerVoxel = 32;
@@ -174,7 +174,7 @@ function MRI() {
         pixdim: [-1, pixdim[0], pixdim[1], pixdim[2], 0, 1, 1, 1],
         vox_offset: vox_offset,
         scl_slope: 1, scl_inter: 0, slice_end: 0, slice_code: 0,
-        xyzt_units: 10,
+        xyzt_units: spacetimeunits,
         cal_max: 0, cal_min: 0, slice_duration: 0, toffset: 0,
         glmax: 0, glmin: 0,
         descrip: 'Reorient, 5 January 2018',
@@ -204,7 +204,7 @@ function MRI() {
       }
       let nii = new Uint8Array(img.buffer.byteLength + vox_offset);
       nii.set(hdr, 0);
-      nii.set(new Uint8Array(img.buffer), hdr.length);
+      nii.set(new Uint8Array(img.buffer), vox_offset);
 
       var niigz = new pako.Deflate({gzip:true});
       niigz.push(nii, true);
