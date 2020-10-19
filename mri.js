@@ -255,14 +255,33 @@ function MRI() {
     },
     loadMRIFromFile: function loadMRIFromFile(file) {
       var pr = new Promise(function(resolve, reject) {
+
+        const arr = file.name.split(".");
+        let compressed = true;
+        if(arr[arr.length - 1] === "gz" && arr[arr.length - 2] === "nii") {
+          compressed = true;
+        } else if (arr[arr.length - 1] === "nii") {
+          compressed = false;
+        } else {
+          alert("Unknown file format. Only nii and nii.gz are accepted");
+          reject();
+        }
+
         // load data
         var reader = new FileReader();
         reader.onload = function() {
-          // decompress data
-          var niigz = this.result;
-          var inflate = new pako.Inflate();
-          inflate.push(new Uint8Array(niigz), true);
-          var nii = inflate.result.buffer;
+          let nii;
+
+          // decompress data if necessary
+          if(compressed) {
+            var niigz = this.result;
+            var inflate = new pako.Inflate();
+            inflate.push(new Uint8Array(niigz), true);
+            nii = inflate.result.buffer;
+          } else {
+            nii = this.result;
+          }
+
           me.parseNifti(nii);
           me.computeS2VTransform();
           me.MatrixVox2Mm = me.vox2mm();
